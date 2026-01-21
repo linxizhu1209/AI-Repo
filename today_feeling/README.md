@@ -20,7 +20,7 @@ AI 텍스트 스트리밍 응답을 확인할 수 있는 Streamlit 기반 실습
 
 ```bash
 pip install sentencepiece transformers==4.48.0 torch streamlit
-
+```
 ---
 
 ## 실행 방법
@@ -28,3 +28,4 @@ pip install sentencepiece transformers==4.48.0 torch streamlit
 아래 명령어로 앱 실행 가능합니다.
 ```bash
 python -m streamlit run app.py
+```
