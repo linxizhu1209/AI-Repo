@@ -1,11 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <title>__PROJECT_NAME__</title>
-    </head>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
     <body>
-    <h1>__PROJECT_NAME__ is running!</h1>
-    <p>This page is rendered by Thymeleaf.</p>
+        <div th:replace="layout/base :: header"></div>
+
+        <main>
+            <h1> __PROJECT_NAME__ is running!</h1>
+            <p>This page uses a shared layout.</p>
+        </main>
+
+        <div th:replace="layout/base :: footer"></div>
     </body>
 </html>

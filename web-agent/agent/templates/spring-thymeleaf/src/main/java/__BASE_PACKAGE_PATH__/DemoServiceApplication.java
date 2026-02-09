@@ -11,12 +11,4 @@ public class DemoServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(DemoServiceApplication.class, args);
     }
-
-    @Controller
-    static class HomeController {
-        @GetMapping("/")
-        public String home() {
-            return "home";
-        }
-    }
 }

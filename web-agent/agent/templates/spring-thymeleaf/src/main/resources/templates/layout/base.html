@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+    <head>
+        <meta charset="UTF-8" />
+        <title th:text="${title} ?: '__PROJECT_NAME__'">__PROJECT_NAME__</title>
+
+    </head>
+    <body>
+
+        <header th:fragment="header">
+            <h2>__PROJECT_NAME__</h2>
+            <hr/>
+        </header>
+
+        <footer th:fragment="footer">
+            <hr/>
+            <small>__PROJECT_NAME__</small>
+        </footer>
+    </body>
+
+    </html>
