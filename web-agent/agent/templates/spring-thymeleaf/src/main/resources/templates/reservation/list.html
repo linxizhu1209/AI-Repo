@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+    <body>
+        <div th:replace="layout/base :: header"></div>
+        
+        <main>
+            <h2>Reservations</h2>
+
+            <form method="post" action="/reservations">
+                <input type="text" name="name" placeholder="Name" required />
+                <input type="text" name="date" placeholder="Date" required />
+                <button type="submit">Add</button>
+            </form>
+
+            <ul>
+                <li th:each="r : ${reservations}">
+                    <span th:text="${r.name}"></span> /
+                    <span th:text="${r.date}"></span>
+                </li>
+            </ul>
+        </main>
+    
+        <div th:replace="layout/base :: footer"></div>
+    
+    </body>
+</html>

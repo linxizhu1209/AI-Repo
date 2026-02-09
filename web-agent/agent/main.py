@@ -15,9 +15,10 @@ def create_project(project_name: str, base_package: str) -> Path:
     replacements = {
         "__PROJECT_NAME__" : project_name,
         "__BASE_PACKAGE__" : base_package,
-        "__BASE_PACKAGE_PATH__": base_package.replace(".", "/"),
     }
     replace_in_files(dest, replacements)
+    replace_base_package_path(dest, base_package)
+    
     return dest
 
 """Gradle Wrapper(gradlew.bat)가 없으면 생성하는 함수"""
@@ -47,6 +48,16 @@ def main():
     print(f"   cd {project_dir}")
     print("    gradlew.bat bootRun")
 
+def replace_base_package_path(project_dir: Path, base_package: str) -> None:
+    """__BASE_PACKAGE_PATH__디렉토리를 실제 패키지 경로로 변경"""
+    src_java = project_dir / "src" / "main" / "java"
+    placeholder = src_java / "__BASE_PACKAGE_PATH__"
+    if not placeholder.exists():
+        return
+
+    target = src_java / Path(*base_package.split("."))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    placeholder.rename(target)
 
 if __name__ == "__main__":
     main()
