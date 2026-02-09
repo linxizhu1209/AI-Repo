@@ -1,0 +1,4 @@
+// [설정 파일] gradle 프로젝트 이름을 지정하는 파일
+
+rootProject.name = "__PROJECT_NAME__"
+
