@@ -8,9 +8,13 @@ def _cap(s: str) -> str:
 
 def generate_reservation_module(project_dir: Path, base_package: str, spec: dict) -> None:
 
+    print("DEBUG SPEC:", spec)
+
     module_name = spec["moduleName"]
     entity_name = spec["entityName"]
     fields = spec["fields"]
+
+    print(f"[GEN] module={module_name}, entity={entity_name}, fields={len(fields)}")
 
     src_java = project_dir / "src" / "main" / "java"
     src_res = project_dir / "src" / "main" / "resources"

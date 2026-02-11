@@ -1,8 +1,12 @@
 {
-    "moduleName": "reservation",
-    "entityName": "Reservation",
-    "fields": [
-        { "name" : "name", "type": "String" },
-        { "name" : "date", "type": "String" }
-    ]
+    "projectName": "demo-service",
+    "basePackage": "com.example.demoservice",
+    "module": {
+        "moduleName": "reservation",
+        "entityName": "Reservation",
+        "fields": [
+            { "name" : "name", "type": "String" },
+            { "name" : "date", "type": "String" }
+        ]
+    }
 }

@@ -4,7 +4,7 @@ from pathlib import Path
 from agent.tools import ensure_dir, copy_template, replace_in_files, run_cmd
 import json
 from agent.generator import generate_reservation_module
-
+import argparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = BASE_DIR / "agent" / "templates" / "spring-thymeleaf"
@@ -22,11 +22,6 @@ def create_project(project_name: str, base_package: str) -> Path:
     }
     replace_in_files(dest, replacements)
     
-    # spec 로드 후 모듈 생성
-    spec_path = BASE_DIR / "specs" / "reservation.json"
-    spec = json.loads(spec_path.read_text(encoding="utf-8"))
-    generate_reservation_module(dest, base_package, spec)
-
     replace_base_package_path(dest, base_package)    
     return dest
 
@@ -46,12 +41,25 @@ def verify_project(project_dir: Path) -> None:
 
 def main():
     # todo 자연어 입력을 spec 으로 변경
-    project_name = "demo-service"
-    base_package = "com.example.demoservice"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--spec", default="specs/reservation.json")
+    args = parser.parse_args()
+
+    spec_path = BASE_DIR / args.spec
+    spec = json.loads(spec_path.read_text(encoding="utf-8"))
+
+    project_name = spec["projectName"]
+    base_package = spec["basePackage"]
 
     project_dir = create_project(project_name, base_package)
-    print(f"\n Project generated at: {project_dir}")
     
+    print("[SPEC PATH]", spec_path)
+    print("[MODULE KEYS]", spec["module"].keys())
+
+
+    # module 생성
+    generate_reservation_module(project_dir, base_package, spec["module"])
+
     verify_project(project_dir)
     print("\n Tests passed! Next: run the server with:")
     print(f"   cd {project_dir}")
