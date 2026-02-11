@@ -1,0 +1,8 @@
+{
+    "moduleName": "reservation",
+    "entityName": "Reservation",
+    "fields": [
+        { "name" : "name", "type": "String" },
+        { "name" : "date", "type": "String" }
+    ]
+}

@@ -1,6 +1,10 @@
 from __future__ import annotations
+import shutil
 from pathlib import Path
 from agent.tools import ensure_dir, copy_template, replace_in_files, run_cmd
+import json
+from agent.generator import generate_reservation_module
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = BASE_DIR / "agent" / "templates" / "spring-thymeleaf"
@@ -17,8 +21,13 @@ def create_project(project_name: str, base_package: str) -> Path:
         "__BASE_PACKAGE__" : base_package,
     }
     replace_in_files(dest, replacements)
-    replace_base_package_path(dest, base_package)
     
+    # spec 로드 후 모듈 생성
+    spec_path = BASE_DIR / "specs" / "reservation.json"
+    spec = json.loads(spec_path.read_text(encoding="utf-8"))
+    generate_reservation_module(dest, base_package, spec)
+
+    replace_base_package_path(dest, base_package)    
     return dest
 
 """Gradle Wrapper(gradlew.bat)가 없으면 생성하는 함수"""
@@ -56,8 +65,24 @@ def replace_base_package_path(project_dir: Path, base_package: str) -> None:
         return
 
     target = src_java / Path(*base_package.split("."))
-    target.parent.mkdir(parents=True, exist_ok=True)
-    placeholder.rename(target)
+    
+    # target이 없으면 rename
+    if not target.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        placeholder.rename(target)
+        return
+    
+    # target이 이미 있으면 placeholder내부를 target으로 "merge"
+    for item in placeholder.rglob("*"):
+        rel = item.relative_to(placeholder)
+        dest = target / rel
+        if item.is_dir():
+            dest.mkdir(parents=True, exist_ok=True)
+        else:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(item), str(dest))
+    
+    shutil.rmtree(placeholder)
 
 if __name__ == "__main__":
     main()
