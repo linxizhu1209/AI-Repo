@@ -128,6 +128,9 @@ public class {entity_name}Service {{
     (service_dir / f"{entity_name}Service.java").write_text(service_code, encoding="utf-8")
 
     # ===== 4) Controller =====
+    route = f"/{module_name}s"
+    list_attr = f"{module_name}s"
+
     controller_code = f"""package {base_package}.web;
 
 import {base_package}.service.{entity_name}Service;
@@ -136,7 +139,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 @Controller
-@RequestMapping("/reservations")
+@RequestMapping("{route}")
 public class {entity_name}Controller {{
 
     private final {entity_name}Service service;
@@ -147,15 +150,15 @@ public class {entity_name}Controller {{
 
     @GetMapping
     public String list(Model model) {{
-        model.addAttribute("reservations", service.findAll());
+        model.addAttribute("{list_attr}", service.findAll());
         return "{module_name}/list";
     }}
 
     @PostMapping
-    public String create(@RequestParam String name,
-                         @RequestParam String date) {{
-        service.create(name, date);
-        return "redirect:/reservations";
+    public String create(@RequestParam String title,
+                         @RequestParam(required = false) Boolean done) {{
+        service.create(title, done != null && done);
+        return "redirect:{route}";
     }}
 }}
 """
@@ -163,25 +166,28 @@ public class {entity_name}Controller {{
     (web_dir / f"{entity_name}Controller.java").write_text(controller_code, encoding="utf-8")
 
     # ===== 5) View =====
-    view_code = """<!DOCTYPE html>
+    view_code = f"""<!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
 
 <div th:replace="layout/base :: header"></div>
 
 <main>
-    <h2>Reservations</h2>
+    <h2>{entity_name}s</h2>
 
-    <form method="post" action="/reservations">
-        <input type="text" name="name" placeholder="Name" required />
-        <input type="text" name="date" placeholder="Date" required />
+    <form method="post" action="{route}">
+        <input type="text" name="title" placeholder="Title" required />
+        <label>
+            <input type="checkbox" name="done" value="true" />
+            Done
+        </label>
         <button type="submit">Add</button>
     </form>
 
     <ul>
-        <li th:each="r : ${reservations}">
-            <span th:text="${r.name}"></span> /
-            <span th:text="${r.date}"></span>
+        <li th:each="x : ${{list_attr}}">
+            <span th:text="${{x.title}}"></span> /
+            <span th:text="${{x.done}}"></span>
         </li>
     </ul>
 </main>

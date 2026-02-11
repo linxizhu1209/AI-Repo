@@ -1,0 +1,12 @@
+{
+    "projectName": "demo-service",
+    "basePackage": "com.example.demoservice",
+    "module": {
+        "moduleName": "todo",
+        "entityName": "Todo",
+        "fields": [
+            { "name": "title", "type": "String" },
+            { "name": "done", "type": "Boolean" }
+        ]
+    }
+}
