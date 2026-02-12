@@ -53,12 +53,13 @@ def main():
 
     project_dir = create_project(project_name, base_package)
     
-    print("[SPEC PATH]", spec_path)
-    print("[MODULE KEYS]", spec["module"].keys())
-
-
     # module 생성
-    generate_reservation_module(project_dir, base_package, spec["module"])
+    modules = spec.get("modules")
+    if modules:
+        for m in modules:
+            generate_reservation_module(project_dir, base_package, m)
+    else:
+        generate_reservation_module(project_dir, base_package, spec["module"])
 
     verify_project(project_dir)
     print("\n Tests passed! Next: run the server with:")

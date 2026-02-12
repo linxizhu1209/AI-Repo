@@ -1,0 +1,22 @@
+{
+    "projectName": "demo-service",
+    "basePackage": "com.example.demoservice",
+    "modules": [
+        {
+            "moduleName": "reservation",
+            "entityName": "Reservation",
+            "fields": [
+                { "name": "name", "type": "String" },
+                { "name": "date", "type": "String" }
+            ]
+        },
+        {
+            "moduleName": "todo",
+            "entityName": "Todo",
+            "fields": [
+                { "name": "title", "type": "String" },
+                { "name": "done", "type": "Boolean" }
+            ]
+        }
+    ]
+}
