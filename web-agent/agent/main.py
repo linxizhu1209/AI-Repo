@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 from agent.tools import ensure_dir, copy_template, replace_in_files, run_cmd
 import json
-from agent.generator import generate_reservation_module
+from agent.generator import generate_reservation_module, generate_home_page
 import argparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -58,8 +58,12 @@ def main():
     if modules:
         for m in modules:
             generate_reservation_module(project_dir, base_package, m)
+        # 홈 페이지 생성
+        generate_home_page(project_dir, base_package, modules)
     else:
         generate_reservation_module(project_dir, base_package, spec["module"])
+        # 단일 모듈도 홈 페이지 생성
+        generate_home_page(project_dir, base_package, [spec["module"]])
 
     verify_project(project_dir)
     print("\n Tests passed! Next: run the server with:")

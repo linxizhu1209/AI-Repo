@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-
+    
 def _plural(module_name: str) -> str:
     """단순한 복수형 생성"""
     return f"{module_name}s"
@@ -262,3 +262,80 @@ def _html_input(field: dict) -> str:
         </label>
         """
     return f'<input type="text" name="{name}" placeholder="{name}" required />'
+
+
+def generate_home_page(project_dir: Path, base_package: str, modules: list[dict]):
+    """
+    [홈 페이지 생성]
+    - modules 목록을 기반으로 / (index) 화면에 링크를 자동 생성
+    """
+    src_java = project_dir / "src" / "main" / "java"
+    src_res = project_dir / "src" / "main" / "resources"
+    base_path = Path(*base_package.split("."))
+
+    web_dir = src_java / base_path / "web"
+    view_dir = src_res / "templates"
+
+    web_dir.mkdir(parents=True, exist_ok=True)
+    view_dir.mkdir(parents=True, exist_ok=True)
+
+    # 링크 데이터 생성: (Label, path)
+    links = []
+    for m in modules:
+        module_name = m["moduleName"]
+        plural = f"{module_name}s"
+        path = f"/{plural}"
+        label = plural[:1].upper() + plural[1:] #Reservations, Todos
+        links.append((label, path))
+
+    controller_code = f"""package {base_package}.web;
+
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+
+import java.util.List;
+
+/**
+* [HomeController]
+* - 홈(/)에서 생성된 모듈 링크 목록을 보여준다
+*/
+@Controller
+public class HomeController {{
+    /**
+    * 홈 페이지
+    */
+    @GetMapping("/")
+    public String home(Model model) {{
+        model.addAttribute("links", List.of(
+        {",\n".join([f'      new String[]{{"{label}", "{path}"}}' for (label, path) in links])}
+        ));
+        return "index";
+    }}
+}}
+"""
+    (web_dir / "HomeController.java").write_text(controller_code, encoding="utf-8")
+
+    # ==== index.html ====
+    index_html = """<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<div th:replace="layout/base :: header"></div>
+
+<main>
+    <h2>Generated Modules</h2>
+
+    <ul>
+        <li th:each="l : ${links}">
+            <a th:href="${l[1]}" th:text="${l[0]}"></a>
+        </li>
+    </ul>
+</main>
+
+<div th:replace="layout/base :: footer"></div>
+
+</body>
+</html>
+"""
+    (view_dir / "index.html").write_text(index_html, encoding="utf-8")
