@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 from agent.tools import ensure_dir, copy_template, replace_in_files, run_cmd
 import json
-from agent.generator import generate_reservation_module, generate_home_page
+from agent.generator import generate_reservation_module, generate_home_page, ensure_app_css
 import argparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -24,6 +24,7 @@ def create_project(project_name: str, base_package: str) -> Path:
     
     replace_base_package_path(dest, base_package)    
     return dest
+
 
 """Gradle Wrapper(gradlew.bat)가 없으면 생성하는 함수"""
 def ensure_gradle_wrapper(project_dir: Path) -> None:
@@ -53,6 +54,9 @@ def main():
 
     project_dir = create_project(project_name, base_package)
     
+    # 공통 CSS 생성
+    ensure_app_css(project_dir)
+
     # module 생성
     modules = spec.get("modules")
     if modules:

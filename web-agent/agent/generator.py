@@ -1,42 +1,36 @@
 from __future__ import annotations
 from pathlib import Path
-    
+
 def _plural(module_name: str) -> str:
-    """단순한 복수형 생성"""
     return f"{module_name}s"
 
+def _cap(s: str) -> str:
+    return s[:1].upper() + s[1:]
+
 def _html_input(field: dict) -> str:
-    """ 필드 타입에 맞는 html input 생성"""
+    """필드 타입에 맞는 HTML input 생성 (Create용)"""
     name = field["name"]
     jtype = field["type"]
 
     if jtype == "Boolean":
         return f"""
-        <label>
+        <label class="cb">
             <input type="checkbox" name="{name}" value="true" />
             {name}
         </label>
         """
-    
     return f'<input type="text" name="{name}" placeholder="{name}" required />'
-
-def _cap(s: str) -> str:
-    return s[:1].upper() + s[1:]
 
 
 def generate_reservation_module(project_dir: Path, base_package: str, spec: dict) -> None:
-
-    print("DEBUG SPEC:", spec)
-
     module_name = spec["moduleName"]
     entity_name = spec["entityName"]
     fields = spec["fields"]
 
-    plural = f"{module_name}s"  # reservations, todos etc..
-    route = f"/{plural}" # /reservations etc ...
-    list_attr = plural
-
-    print(f"[GEN] module={module_name}, entity={entity_name}, fields={len(fields)}")
+    plural = _plural(module_name)        # todos, reservations
+    route = f"/{plural}"                 # /todos
+    list_attr = plural                   # model attribute name
+    redirect_to = f"redirect:{route}"
 
     src_java = project_dir / "src" / "main" / "java"
     src_res = project_dir / "src" / "main" / "resources"
@@ -51,24 +45,23 @@ def generate_reservation_module(project_dir: Path, base_package: str, spec: dict
     for d in [domain_dir, repo_dir, service_dir, web_dir, view_dir]:
         d.mkdir(parents=True, exist_ok=True)
 
-    # ===== 1) Entity =====
-    field_decls = "\n".join(
-        [f"    private {f['type']} {f['name']};" for f in fields]
-    )
+    # ===== 1) Entity (getter + setter) =====
+    field_decls = "\n".join([f"    private {f['type']} {f['name']};" for f in fields])
 
-    ctor_params = ", ".join(
-        [f"{f['type']} {f['name']}" for f in fields]
-    )
+    ctor_params = ", ".join([f"{f['type']} {f['name']}" for f in fields])
+    ctor_body = "\n".join([f"        this.{f['name']} = {f['name']};" for f in fields])
 
-    ctor_body = "\n".join(
-        [f"        this.{f['name']} = {f['name']};" for f in fields]
-    )
-
-    getters = "\n".join(
-        [f"""    public {f['type']} get{_cap(f['name'])}() {{
+    getters = "\n".join([
+        f"""    public {f['type']} get{_cap(f['name'])}() {{
         return {f['name']};
-    }}""" for f in fields]
-    )
+    }}""" for f in fields
+    ])
+
+    setters = "\n".join([
+        f"""    public void set{_cap(f['name'])}({f['type']} {f['name']}) {{
+        this.{f['name']} = {f['name']};
+    }}""" for f in fields
+    ])
 
     entity_code = f"""package {base_package}.domain;
 
@@ -94,9 +87,10 @@ public class {entity_name} {{
     }}
 
 {getters}
+
+{setters}
 }}
 """
-
     (domain_dir / f"{entity_name}.java").write_text(entity_code, encoding="utf-8")
 
     # ===== 2) Repository =====
@@ -108,26 +102,24 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface {entity_name}Repository extends JpaRepository<{entity_name}, Long> {{
 }}
 """
-
     (repo_dir / f"{entity_name}Repository.java").write_text(repo_code, encoding="utf-8")
 
-    # ===== 3) Service =====
-    create_params = ", ".join(
-        [f"{f['type']} {f['name']}" for f in fields]
-    )
+    # ===== 3) Service (findById + update) =====
+    create_params = ", ".join([f"{f['type']} {f['name']}" for f in fields])
+    new_entity_args = ", ".join([f["name"] for f in fields])
 
-    new_entity_args = ", ".join(
-        [f["name"] for f in fields]
-    )
+    update_body = "\n".join([f"        entity.set{_cap(f['name'])}({f['name']});" for f in fields])
 
     service_code = f"""package {base_package}.service;
 
 import {base_package}.domain.{entity_name};
 import {base_package}.repository.{entity_name}Repository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+@Transactional
 @Service
 public class {entity_name}Service {{
 
@@ -144,16 +136,24 @@ public class {entity_name}Service {{
     public {entity_name} create({create_params}) {{
         return repository.save(new {entity_name}({new_entity_args}));
     }}
+
+    public void delete(Long id) {{
+        repository.deleteById(id);
+    }}
+
+    public {entity_name} findById(Long id) {{
+        return repository.findById(id).orElseThrow();
+    }}
+
+    public void update(Long id, {create_params}) {{
+        {entity_name} entity = repository.findById(id).orElseThrow();
+{update_body}
+    }}
 }}
 """
-
     (service_dir / f"{entity_name}Service.java").write_text(service_code, encoding="utf-8")
 
-    # ===== 4) Controller =====
-    plural = _plural(module_name)
-    route = f"/{plural}"
-    list_attr = plural
-
+    # ===== 4) Controller (list/create/delete + edit/update) =====
     req_params = []
     call_args = []
 
@@ -162,12 +162,10 @@ public class {entity_name}Service {{
         jtype = f["type"]
 
         if jtype == "Boolean":
-            # 체크박스는 미체크면 값이 안넘어옴 -> required = false
             req_params.append(f"@RequestParam(required=false) Boolean {name}")
-            # null 이면 false 처리
-            call_args.append(f'({name} != null && {name})')
+            call_args.append(f"({name} != null && {name})")
         else:
-            req_params.append(f'@RequestParam {jtype} {name}')
+            req_params.append(f"@RequestParam {jtype} {name}")
             call_args.append(name)
 
     req_params_code = ",\n                          ".join(req_params)
@@ -199,19 +197,31 @@ public class {entity_name}Controller {{
     @PostMapping
     public String create({req_params_code}) {{
         service.create({call_args_code});
-        return "redirect:{route}";
+        return "{redirect_to}";
+    }}
+
+    @PostMapping("/{{id}}/delete")
+    public String delete(@PathVariable Long id) {{
+        service.delete(id);
+        return "{redirect_to}";
+    }}
+
+    @GetMapping("/{{id}}/edit")
+    public String edit(@PathVariable Long id, Model model) {{
+        model.addAttribute("item", service.findById(id));
+        return "{module_name}/edit";
+    }}
+
+    @PostMapping("/{{id}}/edit")
+    public String update(@PathVariable Long id, {req_params_code}) {{
+        service.update(id, {call_args_code});
+        return "{redirect_to}";
     }}
 }}
 """
-
     (web_dir / f"{entity_name}Controller.java").write_text(controller_code, encoding="utf-8")
 
-    # ===== 5) View =====
-
-    plural = _plural(module_name)
-    route = f"/{plural}"
-    list_attr = plural   
-
+    # ===== 5) View: list.html (CSS 적용) =====
     inputs_html = "\n       ".join([_html_input(f) for f in fields])
 
     item_parts = []
@@ -220,26 +230,40 @@ public class {entity_name}Controller {{
         item_parts.append(f'<span th:text="${{{{x.{fname}}}}}"></span>')
     list_line = " / ".join(item_parts)
 
+    delete_action = f"@{{|{route}/${{x.id}}/delete|}}"
+    edit_href = f"@{{|{route}/${{x.id}}/edit|}}"
+
     view_code = f"""<!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <body>
 
 <div th:replace="layout/base :: header"></div>
 
-<main>
+<div class="container">
+  <div class="card">
     <h2>{entity_name}s</h2>
 
-    <form method="post" action="{route}">
+    <form class="row" method="post" action="{route}">
         {inputs_html}
-        <button type="submit">Add</button>
+        <button class="btn btn-success" type="submit">Add</button>
     </form>
 
-    <ul>
-        <li th:each="x : ${{list_attr}}">
-            {list_line}    
+    <ul class="list">
+        <li th:each="x : ${{{list_attr}}}">
+            <div>
+              {list_line}
+            </div>
+
+            <div class="actions">
+              <a class="btn small" th:href="{edit_href}">Edit</a>
+              <form th:action="{delete_action}" method="post" style="display:inline;">
+                <button class="btn btn-danger small" type="submit">Delete</button>
+              </form>
+            </div>
         </li>
     </ul>
-</main>
+  </div>
+</div>
 
 <div th:replace="layout/base :: footer"></div>
 
@@ -248,19 +272,65 @@ public class {entity_name}Controller {{
 """
     (view_dir / "list.html").write_text(view_code, encoding="utf-8")
 
+    # ===== 6) View: edit.html (CSS 적용) =====
+    edit_inputs = []
+    for f in fields:
+        name = f["name"]
+        jtype = f["type"]
+        if jtype == "Boolean":
+            edit_inputs.append(f"""
+            <label class="cb">
+                <input type="checkbox" name="{name}" value="true" th:checked="${{item.{name}}}" />
+                {name}
+            </label>
+            """)
+        else:
+            edit_inputs.append(f'<input type="text" name="{name}" placeholder="{name}" th:value="${{item.{name}}}" required />')
+
+    edit_inputs_html = "\n       ".join(edit_inputs)
+    edit_action = f"@{{|{route}/${{item.id}}/edit|}}"
+
+    edit_view = f"""<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<div th:replace="layout/base :: header"></div>
+
+<div class="container">
+  <div class="card">
+    <h2>Edit {entity_name}</h2>
+
+    <form class="row" th:action="{edit_action}" method="post">
+        {edit_inputs_html}
+        <button class="btn btn-success" type="submit">Save</button>
+        <a class="btn small" th:href="@{{{route}}}">Back</a>
+    </form>
+  </div>
+</div>
+
+<div th:replace="layout/base :: footer"></div>
+
+</body>
+</html>
+"""
+    (view_dir / "edit.html").write_text(edit_view, encoding="utf-8")
 
 def _html_input(field: dict) -> str:
-    """필드 타입에 맞는 HTML input 생성"""
+    """
+    [Create 폼용 input 생성]
+    - spec의 field 정보를 기반으로 HTML input 태그 생성
+    """
     name = field["name"]
     jtype = field["type"]
 
     if jtype == "Boolean":
         return f"""
-        <label>
+        <label class="cb">
             <input type="checkbox" name="{name}" value="true" />
             {name}
         </label>
         """
+    
     return f'<input type="text" name="{name}" placeholder="{name}" required />'
 
 
@@ -339,3 +409,35 @@ public class HomeController {{
 </html>
 """
     (view_dir / "index.html").write_text(index_html, encoding="utf-8")
+
+"""[공통 CSS 생성] 모든 화면에서 사용하는 기본 스타일"""
+def ensure_app_css(project_dir: Path) -> None:
+    css_dir = project_dir / "src" / "main" / "resources" / "static"
+    css_dir.mkdir(parents=True, exist_ok=True)
+
+    css = """/* app.css - generated */
+:root { --bg:#0b1220; --card:#121a2b; --text:#e6eaf2; --muted:#a7b0c3; --line:#25314d; --btn:#3b82f6; --btn2:#22c55e; --danger:#ef4444; }
+
+* { box-sizing: border-box; }
+body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background: var(--bg); color: var(--text); }
+a { color: inherit; text-decoration: none; }
+.container { max-width: 900px; margin: 0 auto; padding: 24px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+.header { display:flex; justify-content: space-between; align-items:center; margin-bottom: 16px; }
+.brand { font-weight: 800; letter-spacing: 0.5px; }
+.nav a { margin-left: 12px; color: var(--muted); }
+h2 { margin: 0 0 14px; }
+form.row { display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-bottom: 14px; }
+input[type="text"] { padding:10px 12px; border-radius: 10px; border:1px solid var(--line); background:#0f1729; color:var(--text); }
+label.cb { display:flex; align-items:center; gap:8px; color: var(--muted); }
+button { padding:10px 12px; border:0; border-radius: 10px; cursor:pointer; font-weight:700; }
+.btn { background: var(--btn); color:white; }
+.btn-success { background: var(--btn2); color:white; }
+.btn-danger { background: var(--danger); color:white; }
+.list { list-style:none; padding:0; margin:0; }
+.list li { display:flex; justify-content: space-between; align-items:center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.meta { color: var(--muted); font-size: 14px; }
+.actions { display:flex; gap:8px; }
+.small { padding:8px 10px; font-size: 13px; border-radius: 10px; }
+"""
+    (css_dir / "app.css").write_text(css, encoding="utf-8")
