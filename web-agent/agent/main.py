@@ -4,7 +4,9 @@ from pathlib import Path
 from agent.tools import ensure_dir, copy_template, replace_in_files, run_cmd
 import json
 from agent.generator import generate_reservation_module, generate_home_page, ensure_app_css
+from agent.spec_editor import apply_instruction
 import argparse
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = BASE_DIR / "agent" / "templates" / "spring-thymeleaf"
@@ -44,11 +46,21 @@ def main():
     # todo 자연어 입력을 spec 으로 변경
     parser = argparse.ArgumentParser()
     parser.add_argument("--spec", default="specs/reservation.json")
+    # -i "지시1" -i "지시2" 이런식으로 리스트에 여러 지시가 들어갈 수 있음
+    parser.add_argument("--instruction", "-i", action="append",default=None, metavar="TEXT",help="지시문(여러 번 가능) (예: -i 'reservation에 phone 필드 삭제' -i 'reservation에 phon 필드 추가')")
+
     args = parser.parse_args()
 
     spec_path = BASE_DIR / args.spec
     spec = json.loads(spec_path.read_text(encoding="utf-8"))
 
+    instructions = args.instruction or []
+    for instr in instructions:
+        spec = apply_instruction(spec, instr)
+    if instructions:
+        spec_path.write_text(json.dumps(spec, ensure_ascii=False, indent=0), encoding="utf-8")
+        print(f"[Spec updated] {len(instructions)} instruction(s) applied")
+    
     project_name = spec["projectName"]
     base_package = spec["basePackage"]
 
