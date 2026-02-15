@@ -43,9 +43,31 @@ def ensure_gradle_wrapper(project_dir: Path) -> None:
 def verify_project(project_dir: Path) -> None:
     run_cmd(["gradlew.bat", "test"], cwd=project_dir)
 
+def run_agent_full(spec_path: Path, instructions: list[str]) -> Path:
+    """
+    지시 목록을 적용한 뒤 프로젝트를 생성하고 검증한다.
+    반환: 생성된 프로젝트 디렉터리 (Path).
+    """
+    spec = run_agent_instructions(spec_path, instructions)
+    project_name = spec["projectName"]
+    base_package = spec["basePackage"]
+
+    project_dir = create_project(project_name, base_package)
+    ensure_app_css(project_dir)
+
+    modules = spec.get("modules")
+    if modules:
+        for m in modules:
+            generate_reservation_module(project_dir, base_package, m)
+        generate_home_page(project_dir, base_package, modules)
+    else:
+        generate_reservation_module(project_dir, base_package, spec["module"])
+        generate_home_page(project_dir, base_package, [spec["module"]])
+
+    verify_project(project_dir)
+    return project_dir
 
 def main():
-    # todo 자연어 입력을 spec 으로 변경
     parser = argparse.ArgumentParser()
     parser.add_argument("--spec", default="specs/reservation.json")
     # -i "지시1" -i "지시2" 이런식으로 리스트에 여러 지시가 들어갈 수 있음
@@ -76,31 +98,9 @@ def main():
         else:
             print(f"[Warn] instruction file not found: {path}")
     
-    spec = run_agent_instructions(spec_path, instructions)
+    project_dir = run_agent_full(spec_path, instructions)
     if instructions:
         print(f"[Spec updated] {len(instructions)} instruction(s) applied")
-    
-    project_name = spec["projectName"]
-    base_package = spec["basePackage"]
-
-    project_dir = create_project(project_name, base_package)
-    
-    # 공통 CSS 생성
-    ensure_app_css(project_dir)
-
-    # module 생성
-    modules = spec.get("modules")
-    if modules:
-        for m in modules:
-            generate_reservation_module(project_dir, base_package, m)
-        # 홈 페이지 생성
-        generate_home_page(project_dir, base_package, modules)
-    else:
-        generate_reservation_module(project_dir, base_package, spec["module"])
-        # 단일 모듈도 홈 페이지 생성
-        generate_home_page(project_dir, base_package, [spec["module"]])
-
-    verify_project(project_dir)
     print("\n Tests passed! Next: run the server with:")
     print(f"   cd {project_dir}")
     print("    gradlew.bat bootRun")
