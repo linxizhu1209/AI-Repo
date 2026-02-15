@@ -7,6 +7,7 @@ from agent.generator import generate_reservation_module, generate_home_page, ens
 from agent.spec_editor import apply_instruction
 import argparse
 from agent.runner import run_agent_instructions
+from agent.llm_parser import _call_ollama
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -49,11 +50,21 @@ def main():
     parser.add_argument("--spec", default="specs/reservation.json")
     # -i "지시1" -i "지시2" 이런식으로 리스트에 여러 지시가 들어갈 수 있음
     parser.add_argument("--instruction", "-i", action="append",default=None, metavar="TEXT",help="지시문(여러 번 가능) (예: -i 'reservation에 phone 필드 삭제' -i 'reservation에 phon 필드 추가')")
+    parser.add_argument("--natural", "-n", default=None, metavar="TEXT", help="자연어 지시 (Ollama/LLM으로 구조화된 지시로 변환 후 적용)")
 
     args = parser.parse_args()
 
     spec_path = BASE_DIR / args.spec
     instructions = list(args.instruction or [])
+
+    # 자연어 지시가 있으면 LLM(Ollama)으로 변환 후 instructions에 추가
+    if args.natural:
+        nl_instructions = _call_ollama(args.natural)
+        if nl_instructions:
+            instructions.extend(nl_instructions)
+            print(f"[LLM] 자연어 -> {len(nl_instructions)}개 지시로 변환됨")
+        else:
+            print(f"[Warn] 자연어 변환 실패. Ollama: ollama run llama3.2")
 
     if getattr(args, "instruction_file", None):
         path = BASE_DIR / args.instruction_file
