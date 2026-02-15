@@ -6,6 +6,7 @@ import json
 from agent.generator import generate_reservation_module, generate_home_page, ensure_app_css
 from agent.spec_editor import apply_instruction
 import argparse
+from agent.runner import run_agent_instructions
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -52,13 +53,20 @@ def main():
     args = parser.parse_args()
 
     spec_path = BASE_DIR / args.spec
-    spec = json.loads(spec_path.read_text(encoding="utf-8"))
+    instructions = list(args.instruction or [])
 
-    instructions = args.instruction or []
-    for instr in instructions:
-        spec = apply_instruction(spec, instr)
+    if getattr(args, "instruction_file", None):
+        path = BASE_DIR / args.instruction_file
+        if path.exists():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    instructions.append(line)
+        else:
+            print(f"[Warn] instruction file not found: {path}")
+    
+    spec = run_agent_instructions(spec_path, instructions)
     if instructions:
-        spec_path.write_text(json.dumps(spec, ensure_ascii=False, indent=0), encoding="utf-8")
         print(f"[Spec updated] {len(instructions)} instruction(s) applied")
     
     project_name = spec["projectName"]
