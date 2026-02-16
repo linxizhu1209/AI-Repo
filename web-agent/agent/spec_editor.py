@@ -30,11 +30,15 @@ def apply_instruction(spec: dict, instruction: str) -> dict:
     
     # --- 필드 추가 지시 -------
     add_match = re.search(
-        r"(\w+?)에\s+(\w+)\s+필드\s+(?:(\w+)\s+으로\s+)?추가",
-        instruction,
+    r"(\w+?)(?:\s*모듈)?\s*에\s+(\w+)\s+필드\s+(?:(\w+)\s+으로\s+)?추가",
+    instruction,
     )
+
     if add_match:
         module_name, field_name, type_str = add_match.group(1), add_match.group(2), add_match.group(3)
+        # Ollama가 "todo_module" 처럼 붙일 수 있음 → spec은 "todo" 이므로 보정
+        if module_name.endswith("_module"):
+            module_name = module_name[:-7]  # "_module" 제거
         field_type = type_str if type_str else "String"
         for i, m in enumerate(modules):
             if m.get("moduleName") == module_name:
