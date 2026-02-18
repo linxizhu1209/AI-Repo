@@ -2,7 +2,12 @@
 from __future__ import annotations
 import os
 import re
+import json
+from jsonschema import validate, ValidationError
+from openai import OpenAI
 
+client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+        
 SYSTEM_PROMPT = """
 당신은 프로젝트 spec을 수정하는 에이전트입니다. 사용자 요청을 다음 형식의 지시문 리스트로 변환해주세요.
 한줄에 하나의 지시만 출력합니다.
@@ -42,8 +47,6 @@ def _parse_instructions(content: str) -> list[str]:
 """ Ollama 로컬 모델 호출 """
 def _call_ollama(text: str, model: str = "llama3.2") -> list[str]:
     try:
-        from openai import OpenAI
-        client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
         resp = client.chat.completions.create(
             model=model,
             messages=[
@@ -58,3 +61,107 @@ def _call_ollama(text: str, model: str = "llama3.2") -> list[str]:
         print(f"[Ollama Error] {e}")
         print("  -> Ollama 실행 확인: ollama run llama3.2")
         return []
+
+
+""" schema 변환 프롬프트 """
+SPEC_SYSTEM_PROMPT = """
+You are a strict JSON generator.
+
+Convert the user instruction into the following JSON format:
+
+{
+    "project" : {
+        "name": "...",
+        "basePackage": "..."
+    },
+    "modules": [
+        {
+            "moduleName": "...",
+            "entityName": "...",
+            "fields": [
+                { "name": "...", " type": "String" }
+            ]
+        }
+    ]      
+}
+
+Rules:
+- Output valid JSON only
+- No explanation
+- No markdown.
+- Allowed field types: String, Boolean, Integer, Long.
+- project.name must be lowercase english slug (letters/numbers/hyphen only). Example: blog, my-blog, blog-service
+- Translate Korean project names into english. Example: 블로그 -> blog, 예약 -> reservation
+- moduleName must be lowercase english.
+- entityName must be PascalCase english. Example: Post, Reservation
+
+"""
+
+SPEC_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "project": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "basePackage": {"type": "string"}
+            },
+            "required": ["name", "basePackage"]
+        },
+        "modules": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "moduleName": {"type": "string"},
+                    "entityName": {"type": "string"},
+                    "fields": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "type": {"type": "string"}
+                            },
+                            "required": ["name", "type"]
+                        }
+                    }
+                },
+                "required": ["moduleName", "entityName", "fields"]
+            }
+        }
+    },
+    "required": ["project", "modules"]
+}
+
+def generate_full_spec_from_nl(text: str, model: str = "llama3.2") -> dict:
+    resp = client.chat.completions.create(
+        model = model,
+        messages=[
+            {"role": "system", "content": SPEC_SYSTEM_PROMPT},
+            {"role": "user", "content": text}
+        ],
+        temperature=0.1,
+    )
+
+    content = (resp.choices[0].message.content or "").strip()
+
+    content = content.replace("```json", "").replace("```", "").strip()
+
+    match = re.search(r"\{.*\}", content, re.DOTALL)
+    if not match:
+        raise ValueError("No JSON object found in LLM response")
+    
+    json_text = match.group(0)
+
+    try:
+        spec = json.loads(content)
+    except Exception:
+        raise ValueError("LLM did not return valid JSON")
+    
+    try:
+        validate(instance=spec, schema=SPEC_SCHEMA)
+    except ValidationError as e:
+        raise ValueError(f"Invalid spec structure: {e}")
+    
+    return spec

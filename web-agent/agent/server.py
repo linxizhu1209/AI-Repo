@@ -46,8 +46,27 @@ def health():
 
 """ instruction + spec 으로 Agent 실행. /api/run 과 from-message/webhook 에서 사용"""
 def run_agent_from_instruction(instruction: str, spec: str= "specs/app.json") -> RunResponse:
-    from agent.llm_parser import _call_ollama
+    from agent.llm_parser import _call_ollama, generate_full_spec_from_nl
     from agent.main import run_agent_full
+    from agent.generator import generate_project_from_spec
+
+     # new Mode 감지
+    if instruction.lower().startswith("new project"):
+        full_spec = generate_full_spec_from_nl(instruction)
+
+        project_name = full_spec["project"]["name"]
+        base_package = full_spec["project"]["basePackage"]
+
+        project_dir = BASE_DIR / "generated" / project_name
+        project_dir.mkdir(parents=True, exist_ok=True)
+
+        generate_project_from_spec(project_dir, full_spec)
+
+        return RunResponse(
+            status="ok",
+            project_name=project_name,
+            project_dir=str(project_dir),
+        )
 
     spec_path = BASE_DIR / spec
     if not spec_path.exists():

@@ -315,23 +315,7 @@ public class {entity_name}Controller {{
 """
     (view_dir / "edit.html").write_text(edit_view, encoding="utf-8")
 
-def _html_input(field: dict) -> str:
-    """
-    [Create 폼용 input 생성]
-    - spec의 field 정보를 기반으로 HTML input 태그 생성
-    """
-    name = field["name"]
-    jtype = field["type"]
 
-    if jtype == "Boolean":
-        return f"""
-        <label class="cb">
-            <input type="checkbox" name="{name}" value="true" />
-            {name}
-        </label>
-        """
-    
-    return f'<input type="text" name="{name}" placeholder="{name}" required />'
 
 
 def generate_home_page(project_dir: Path, base_package: str, modules: list[dict]):
@@ -441,3 +425,18 @@ button { padding:10px 12px; border:0; border-radius: 10px; cursor:pointer; font-
 .small { padding:8px 10px; font-size: 13px; border-radius: 10px; }
 """
     (css_dir / "app.css").write_text(css, encoding="utf-8")
+
+# --------------------------- #
+"""spec에따라 project 생성"""
+def generate_project_from_spec(project_dir: Path, spec: dict):
+    base_package = spec["project"]["basePackage"]
+    modules = spec["modules"]
+
+    for module in modules:
+        generate_reservation_module(
+            project_dir=project_dir,
+            base_package=base_package,
+            spec=module
+        )
+    generate_home_page(project_dir, base_package, modules)
+    ensure_app_css(project_dir)
